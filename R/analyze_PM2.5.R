@@ -1,3 +1,4 @@
+# Load Libraries -----------------------------------------------------------
 library(arrow)
 library(purrr)
 library(dplyr)
@@ -5,65 +6,121 @@ library(fs)
 library(lubridate)
 library(ggplot2)
 library(readr)
+library(plotly)
 
+
+# Read from other files ---------------------------------------------------
+
+#source functions file
+source("R/functions.R")
+
+# Read the custom label mappings
+label_mappings <- read_csv("documents/labels_mapping.csv")
 
 # Set Variables -----------------------------------------------------------
+
+
 
 # Set threshold value
 threshold_value <- 15
 
 # Path to your files
-dir_path <- "data/Vienna_PM2.5/Airbase"
+dir_path <- "data/Vienna_PM2.5/E1a"
+
+
+
+
+# Split the directory path by the "/" separator
+path_parts <- strsplit(dir_path, "/")[[1]]
+
+# Extract the last two parts of the directory path
+if(length(path_parts) >= 2) {
+  dir_name <- paste(path_parts[(length(path_parts)-1):length(path_parts)], collapse = "_")
+} else {
+  dir_name <- path_parts[length(path_parts)]  # Fallback to the last part if less than 2 parts
+}
 
 # Inserting Data ----------------------------------------------------------
 
-# Get a list of all Parquet files
-parquet_files <- list.files(dir_path, pattern = "\\.parquet$", full.names = TRUE)
-
-# Print statement to check if files are found
-if (length(parquet_files) == 0) {
-  print("No Parquet files found in the specified directory.")
-} else {
-  print("Found the following Parquet files:")
-  print(parquet_files)
-}
-
-
-# Read and combine into a single dataframe
-all_data <- map_dfr(parquet_files, read_parquet)
-
+all_data <- load_and_combine_parquet_files(dir_path)
 
 # Print the different sampling points
 unique_sampling_points <- unique(all_data$Samplingpoint)
 print(unique_sampling_points)
 
-# Look at sampling points
+
+# Check AggTypes (TODO: IMPLEMENT FUNCTION) ----------------------------------------------------------
+
+
+#FUNCTION
+
+# Look at AggTypes
 unique_AggTypes <- unique(all_data$AggType)
+
+print(unique_AggTypes)
 
 # Check if the only unique AggType is "day"
 if (length(unique_AggTypes) == 1 && unique_AggTypes == "day") {
   print("AggType 'day' is the only aggregation type present.")
+}
+
+if (length(unique_AggTypes) > 1) {
+  print("Multiple AggTypes present in the data.")
+}
+
+# Step 2: Pre-process Hourly Data to Daily Averages
+if("hour" %in% unique(all_data$AggType)) {
+  hourly_data <- all_data %>% 
+    filter(AggType == "hour") %>%
+    # Convert Start to Date format directly, avoiding temporary Date column
+    mutate(Date = as.Date(Start)) %>%
+    group_by(Date, Samplingpoint) %>%
+    summarize(DailyAvgValue = mean(Value, na.rm = TRUE), .groups = 'drop') %>%
+    # Directly use the new Date column for further processing
+    mutate(AggType = "day", Start = Date) %>%
+    # Now, we can safely remove the Date column as it's been merged into Start
+    select(-Date)
+  
+  if("hour" %in% unique(all_data$AggType)) {
+    # (existing aggregation code)
+    print("Hourly data aggregated to daily averages.")
+    print(head(hourly_data))
+  }
+  
+  # Filter out the hourly aggregated rows from the original dataset
+  daily_data <- all_data %>%
+    filter(AggType == "day")
+  
+  # Combine daily and converted hourly data
+  combined_data <- bind_rows(daily_data, hourly_data)
+  
+  
 } else {
-  stop("Error: AggType 'day' is not the sole aggregation type in the dataset.")
+  # If no hourly data, proceed with original dataset
+  combined_data <- all_data
 }
 
-# Analysing Data ----------------------------------------------------------
+print("Combined data:")
+print(head(combined_data))
 
-#EVENTUELL FÜR VERIFICATION (oder Validity) CHECKEN
 
-# Filter out invalid measurements and print them
-invalid_measurements <- all_data %>%
-  filter(!Validity %in% c(1, 2, 3))
+print(unique(combined_data$AggType))
 
-# If you want to see these invalid measurements, print them out
-if(nrow(invalid_measurements) > 0) {
-  print("Invalid Measurements Found:")
-  print(invalid_measurements)
-}
 
-# Proceed with only valid measurements
-valid_data <- all_data %>%
-  filter(Validity %in% c(1, 2, 3))
+# Label the Samplingpoints ------------------------------------------------
+
+# Function to apply custom labels based on the mapping
+apply_custom_labels <- function(sampling_point, mappings)
+
+# Use vectorization for efficiency
+vectorized_labeling <- Vectorize(apply_custom_labels, vectorize.args = "sampling_point")
+
+
+# Filter out invalid measurements -----------------------------------------
+
+valid_data <- filter_invalid_measurements(combined_data)
+
+# Analysing Data BUG: ONLY GRAVI!! ----------------------------------------------------------
 
 # Main analysis with custom labeling
 analysis_results <- valid_data %>%
@@ -71,15 +128,7 @@ analysis_results <- valid_data %>%
          ValueExceeds = Value > threshold_value) %>%
   group_by(Month, Samplingpoint) %>%
   summarize(ExceedCount = sum(ValueExceeds, na.rm = TRUE), .groups = 'drop') %>%
-  filter(ExceedCount > 0) %>%
-  mutate(CustomLabel = case_when(
-    grepl("AKC", Samplingpoint) ~ "AKH (Allgemeines Krankenhaus)",
-    grepl("KEND", Samplingpoint) ~ "Kendlerstraße",
-    grepl("LOB", Samplingpoint) ~ "Lobau",
-    grepl("STAD", Samplingpoint) ~ "Stadlau",
-    grepl("TAB", Samplingpoint) ~ "Taborstraße",
-    TRUE ~ "Other"
-  ))
+  mutate(CustomLabel = vectorized_labeling(Samplingpoint, label_mappings))
 
 # Filter for "Other" labeled sampling points and print them
 sampling_points_labeled_other <- analysis_results %>%
@@ -96,17 +145,11 @@ if(nrow(sampling_points_labeled_other) > 0) {
 print("Analysis Results:")
 print(analysis_results)
 
+print(summary(analysis_results$ExceedCount))
+print(summary(analysis_results$Month))
+
+
 # Save results ---------------------------------------------------------------
-
-# Split the directory path by the "/" separator
-path_parts <- strsplit(dir_path, "/")[[1]]
-
-# Extract the last two parts of the directory path
-if(length(path_parts) >= 2) {
-  dir_name <- paste(path_parts[(length(path_parts)-1):length(path_parts)], collapse = "_")
-} else {
-  dir_name <- path_parts[length(path_parts)]  # Fallback to the last part if less than 2 parts
-}
 
 # Create a filename with the directory name included
 filename <- paste0("analysis_results_", dir_name, ".csv")
@@ -127,12 +170,22 @@ all_time_plot <- ggplot(analysis_results, aes(x = Month, y = ExceedCount, color 
   geom_line() +
   geom_point() +
   theme_minimal() +
-  labs(title = "Monthly Exceedance Counts by Sampling Point",
+  labs(title = "Monthly Exceedance Counts by Sampling Point (PM2.5)",
        x = "Month",
        y = "Exceedance Count",
        color = "Sampling Point") +
   theme(legend.position = "bottom",
         legend.title.align = 0.5)
+
+
+# Convert ggplot object to plotly object
+all_time_plotly <- ggplotly(all_time_plot)
+
+# Display the plot
+all_time_plotly
+
+
+# Save Plot ---------------------------------------------------------------
 
 # Save the plot as a PNG file
 plot_filename <- paste0("exceedance_counts_plot_", dir_name, ".png")
@@ -182,3 +235,17 @@ plot_year_data(analysis_results, last_year)
 plot_year_data(analysis_results, last_year - 1)
 #year before that
 plot_year_data(analysis_results, last_year - 2)
+
+
+
+# Addon: Total Exceedances per Month NEED TO CHECK!! --------------------------------------
+
+# Function to calculate and plot total and average exceedances
+
+#WAS PASSIERT MIT ABGESCHNITTENEN MONATEN???
+
+analyze_exceedances(valid_data, threshold_value, "daily")
+
+
+
+
