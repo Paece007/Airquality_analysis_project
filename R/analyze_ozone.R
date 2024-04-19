@@ -6,6 +6,7 @@ library(purrr)
 library(zoo)
 library(readr)
 library(ggplot2)
+library(lubridate)
 
 
 # Read from other files ---------------------------------------------------
@@ -19,10 +20,10 @@ label_mappings <- read_csv("documents/labels_mapping.csv")
 # Set Variables -----------------------------------------------------------
 
 # Set threshold value
-threshold_value <- 100
+threshold_value <- 120
 
 # Path to your files
-dir_path <- "data/Vienna_O3/Airbase"
+dir_path <- "data/Vienna_O3/all_together"
 
 
 # Split the directory path by the "/" separator
@@ -91,12 +92,15 @@ calculate_8hr_averages <- function(data) {
   # Sort the data by 'Samplingpoint' and 'End' to ensure chronological order within each sampling point
   sorted_data <- data %>% arrange(Samplingpoint, End)
   print(paste("Data sorted. Number of rows:", nrow(sorted_data)))
+  print(head(sorted_data))
   
   # Calculate the 8-hour rolling averages within each sampling point group
+  print("Calculating 8-hour averages...")
   averaged_data <- sorted_data %>%
     group_by(Samplingpoint) %>%
     mutate(Avg_8hr = rollapply(Value, width = 8, FUN = mean, by = 1, align = "right", partial = TRUE, na.rm = TRUE)) %>%
-    ungroup() # Remove the grouping structure for further general manipulation or analysis
+    # Remove the grouping structure for further general manipulation or analysis
+    ungroup()
   
   print(paste("Calculated 8-hour averages. Number of rows with NA in Avg_8hr:", sum(is.na(averaged_data$Avg_8hr))))
   
@@ -105,13 +109,13 @@ calculate_8hr_averages <- function(data) {
 }
 
 averaged_data <- calculate_8hr_averages(valid_data)
+print(summary(averaged_data))
 print(paste("8-hour averages calculated. Number of unique sampling points:", length(unique(averaged_data$Samplingpoint))))
 
 
 
 # Analysis ----------------------------------------------------------------
 
-# Function to analyze exceedances of a given threshold of the 8-hour averages
-analyze_exceedances(averaged_data, 100, "8hourly")
-
+# Function to analyze exceedance days of a given threshold of the 8-hour averages
+analyze_exceedance_days(averaged_data, threshold_value, "Ozone" , "8hourly")
 

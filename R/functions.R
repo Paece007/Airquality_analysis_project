@@ -2,6 +2,16 @@
 # Read the custom label mappings
 label_mappings <- read_csv("documents/labels_mapping.csv")
 
+# Load the timeframes and colors
+  timeframes_colors <- read_csv("documents/timeframes_colors.csv")
+# Convert dates from character to Date type
+timeframes_colors$start <- as.Date(timeframes_colors$start)
+timeframes_colors$end <- as.Date(timeframes_colors$end)
+
+timeframes_colors <- timeframes_colors %>%
+  mutate(start_year = year(start),
+         end_year = year(end))
+
 
 #function: load and combine parquet files
 load_and_combine_parquet_files <- function(dir_path) {
@@ -20,7 +30,7 @@ load_and_combine_parquet_files <- function(dir_path) {
   all_data <- map_dfr(parquet_files, read_parquet)
   
   # Optional: Print the first few rows and summary of the combined data
-  print(head(all_data))
+  print("Summary:")
   print(summary(all_data))
   print("Data loaded successfully.")
   
@@ -49,6 +59,8 @@ vectorized_labeling <- Vectorize(apply_custom_labels, vectorize.args = "sampling
 #function: seed out invalid dataentries
 filter_invalid_measurements <- function(data) {
   
+  print("Filtering invalid measurements...")
+  
   # Filter out invalid measurements and store them in a separate data frame
   invalid_measurements <- data %>%
     filter(!Validity %in% c(1, 2, 3))
@@ -57,8 +69,7 @@ filter_invalid_measurements <- function(data) {
   if(nrow(invalid_measurements) > 0) {
     message("Invalid Measurements Found:")
     print(nrow(invalid_measurements))
-    # Optionally, you can print the invalid measurements themselves
-    print(head(invalid_measurements))
+    print(summary(invalid_measurements))
   } else {
     message("No invalid measurements found.")
   }
@@ -77,77 +88,160 @@ filter_invalid_measurements <- function(data) {
 
 
 
-#function: analyze exceedances
-analyze_exceedances <- function(data, threshold, aggregation = "daily") {
+#function: analyze exceedance days
+analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation = "daily", specific_month = 7) {
+  
   print("Starting analysis...")
   
-  # Convert 'End' column to POSIXct, ensuring correct datetime format
-  data$End <- as.POSIXct(data$End)
-  print("Datetime conversion completed.")
   
-  # Adjust for aggregation type: daily or 8-hourly
+  # Adjust based on the type of aggregation: daily or 8-hourly
   if(aggregation == "8hourly") {
+    # First, ensure 'End' is in Date format for daily grouping
     data <- data %>%
-      mutate(Date = as.Date(End),
-             ValueExceeds = Avg_8hr > threshold)
-    print("Data filtered for 8-hourly exceedances.")
-  } else { # Default to daily
+      mutate(Date = as.Date(End))
+    
+    # Group by 'Date' to process data day by day
     data <- data %>%
-      mutate(Date = as.Date(End),
-             ValueExceeds = Value > threshold)
-    print("Data filtered for daily exceedances.")
+      group_by(Date) %>%
+      # Determine if at least one 8-hour average exceeds the threshold for each day
+      summarize(ValueExceeds = any(Avg_8hr > threshold, na.rm = TRUE), .groups = 'drop')
+    
+    print("Aggregation completed for 8-hourly exceedances. Checked if at least one 8-hour average per day exceeds the threshold.")
+  }
+  if (aggregation == "daily") {
+    # First, ensure 'Start' is in Date format for daily grouping
+    data <- data %>%
+      mutate(Date = as.Date(Start)) %>%
+      # Group by 'Date' to process data day by day
+      group_by(Date) %>%
+      # Determine if at least one value exceeds the threshold for each day
+      summarize(ValueExceeds = any(Value > threshold, na.rm = TRUE), .groups = 'drop')
+    
+    print("Data filtered for daily exceedances. Checking if daily values exceed the threshold.")
   }
   
-  # Checking the first few rows after filtering
-  print(head(data))
+
+  # Create a summary to identify days with at least one exceedance
+  daily_summary <- data %>%
+    group_by(Date) %>%
+    summarize(AnyExceedance = max(ValueExceeds), .groups = 'drop') %>%
+    mutate(Year = year(Date), Month = month(Date), MonthName = month.abb[Month])
+  print("Created a daily summary indicating days with any exceedance.")
   
-  # Total exceedances per month across all years
-  total_exceedances <- data %>%
-    group_by(Month = floor_date(Date, "month")) %>%
-    summarize(TotalExceedCount = sum(ValueExceeds, na.rm = TRUE)) %>%
-    ungroup()
+  print(summary(daily_summary))
+  
+  
+  # Count exceedance days per month
+  total_exceedance_days_per_month <- daily_summary %>%
+    # Group by month
+    group_by(Year, Month) %>%
+    # Sum the exceedance days for each month
+    summarize(TotalExceedDays = sum(AnyExceedance, na.rm = TRUE)) %>%
+    # Remove the grouping structure
+    ungroup() %>%
+    # Creating a Date variable for plotting
+    mutate(Date = make_date(Year, Month, 1))
   
   print("Calculated total monthly exceedances.")
   
+  
+  print(summary(total_exceedance_days_per_month))
+  
+  
   # Plot total monthly exceedances
-  p1 <- ggplot(total_exceedances, aes(x = Month, y = TotalExceedCount)) +
+  p1 <- ggplot(total_exceedance_days_per_month, aes(x = Date, y = TotalExceedDays)) +
     geom_line() + geom_point() +
-    labs(title = paste("Total Monthly Exceedances -", aggregation), x = "Date", y = "Total Exceedances") +
+    labs(title = paste("Total Monthly Exceedances of", pollutant_name, "with threshold", threshold), x = "Date", y = "Number of Exceedance Days") +
     theme_minimal()
+    
+  
+  print(ggplotly(p1))
   
   print("Total monthly exceedances plot prepared.")
   
-  days_exceeded <- data %>%
-    mutate(Date = as.Date(End), 
-           MonthOnly = format(Date, "%m"), 
-           MonthName = month.abb[as.numeric(MonthOnly)]) %>%
-    group_by(Date) %>%
-    summarize(DayExceeded = any(ValueExceeds), .groups = 'drop') %>%
-    ungroup() %>%
-    mutate(Month = floor_date(Date, "month")) %>%
-    group_by(Month) %>%
-    summarize(TotalExceedanceDays = sum(DayExceeded), .groups = 'drop') %>%
-    ungroup() %>%
-    mutate(MonthOnly = as.numeric(format(Month, "%m")), # Ensure MonthOnly is numeric for sorting
-           MonthName = month.abb[MonthOnly]) %>%
+  
+  
+  # Data preparation with explanatory print statements
+  print("Starting data preparation for plotting...")
+  
+  monthly_yearly_exceedances <- daily_summary %>%
+    mutate(
+      Year = year(Date),
+      Month = month(Date),
+      MonthName = month.abb[Month] # Abbreviated month name for readability in the plot
+    ) %>%
+    group_by(Year, Month, MonthName) %>%
+    summarize(AnyExceedance = sum(AnyExceedance, na.rm = TRUE), .groups = 'drop') %>%
+    ungroup()
+  
+  print("Days with exceedances counted per month, per year.")
+  
+  avg_monthly_exceedances <- monthly_yearly_exceedances %>%
     group_by(MonthName) %>%
-    summarize(TotalExceedanceDays = sum(TotalExceedanceDays), .groups = 'drop') %>%
-    mutate(MonthName = factor(MonthName, levels = month.abb)) # Ensure correct order by month abbreviations
+    summarize(AvgExceedanceDays = mean(AnyExceedance), .groups = 'drop') %>%
+    ungroup() %>%
+    mutate(MonthName = factor(MonthName, levels = month.abb)) # Ensure proper month order for plotting
   
-  print("Calculated total exceedance days per month.")
+  print("Average exceedance days per month across all years calculated.")
   
-  # Plot total exceedance days per month with months in chronological order
-  p2 <- ggplot(days_exceeded, aes(x = MonthName, y = TotalExceedanceDays)) +
+  # Verifying the structure and summary of the prepared data
+  print("Preview of the prepared daily summary for plotting:")
+  print(head(daily_summary))
+  
+  # Plot creation with a print statement to indicate the process
+  print("Creating plot to visualize the average exceedance days per month across all years...")
+  
+  p2 <- ggplot(avg_monthly_exceedances, aes(x = MonthName, y = AvgExceedanceDays)) +
     geom_bar(stat = "identity", fill = "coral") +
-    labs(title = "Total Exceedance Days per Month", x = "Month", y = "Total Exceedance Days") +
+    labs(title = paste("Average Exceedance Days per Month Across All Years of", pollutant_name, "with threshold", threshold),
+         x = "Month", y = "Average Exceedance Days") +
     theme_minimal()
   
   print("Total exceedance days per month plot prepared.")
   
-  print("Total exceedance days per month plot prepared.")
+  
+  
+  
+  # Aggregate total yearly exceedances
+  
+  print("Calculating total yearly exceedances.")
+  
+  total_exceedances_per_year <- daily_summary %>%
+    group_by(Year) %>%
+    summarize(TotalExceedDays = sum(AnyExceedance, na.rm = TRUE)) %>%
+    ungroup()
+  
+  print("Calculated total yearly exceedances.")
+  
+  
+  # Plot total yearly exceedances
+  p3 <- ggplot(total_exceedances_per_year, aes(x = Year, y = TotalExceedDays)) +
+    geom_rect(data = timeframes_colors, inherit.aes = FALSE,
+              aes(xmin = start_year, xmax = end_year, ymin = -Inf, ymax = Inf, fill = I(color)),
+              alpha = 0.3) +
+    geom_line(size = 1) + 
+    geom_point(size = 3) +
+    labs(title = paste("Total Measured Yearly Exceedances of", pollutant_name, "with Threshold", threshold),
+         x = "Year", 
+         y = "Number of Exceedance Days") +
+    theme_minimal(base_size = 14) +
+    theme(text = element_text(family = "Helvetica"),
+          plot.title = element_text(size = 20, face = "bold"),
+          axis.title = element_text(size = 16, face = "bold"),
+          plot.margin = margin(10, 10, 10, 10))
+  
+  print("Total yearly exceedances plot prepared.")
+  
+  
+  
+  
   
   # Display plots
   print("Displaying plots...")
+  print("Displaying the total monthly exceedances plot...")
   print(p1)
+  print("Displaying the average monthly exceedances plot...")
   print(p2)
+  print("Displaying the yearly exceedances plot...")
+  print(p3)
 }

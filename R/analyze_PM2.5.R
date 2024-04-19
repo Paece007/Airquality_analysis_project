@@ -25,7 +25,7 @@ label_mappings <- read_csv("documents/labels_mapping.csv")
 threshold_value <- 15
 
 # Path to your files
-dir_path <- "data/Vienna_PM2.5/E1a"
+dir_path <- "data/Vienna_PM2.5/all_together"
 
 
 
@@ -44,20 +44,24 @@ if(length(path_parts) >= 2) {
 
 all_data <- load_and_combine_parquet_files(dir_path)
 
+# Filter out invalid measurements -----------------------------------------
+
+valid_data <- filter_invalid_measurements(all_data)
+
+print("From now on only valid data is used.")
+
 # Print the different sampling points
 unique_sampling_points <- unique(all_data$Samplingpoint)
+print("All of the different sampling stations:")
 print(unique_sampling_points)
 
+# Check AggTypes for Daily ----------------------------------------------------------
 
-# Check AggTypes (TODO: IMPLEMENT FUNCTION) ----------------------------------------------------------
+# Step 1: Check if only daily data is present
+# Get all the different AggTypes
+unique_AggTypes <- unique(valid_data$AggType)
 
-
-#FUNCTION
-
-# Look at AggTypes
-unique_AggTypes <- unique(all_data$AggType)
-
-print(unique_AggTypes)
+print(paste0("Unique AggType in data: ", unique_AggTypes))
 
 # Check if the only unique AggType is "day"
 if (length(unique_AggTypes) == 1 && unique_AggTypes == "day") {
@@ -68,44 +72,44 @@ if (length(unique_AggTypes) > 1) {
   print("Multiple AggTypes present in the data.")
 }
 
+
+
 # Step 2: Pre-process Hourly Data to Daily Averages
-if("hour" %in% unique(all_data$AggType)) {
-  hourly_data <- all_data %>% 
+if("hour" %in% unique(valid_data$AggType)) {
+  # Process hourly data
+  hourly_data <- valid_data %>%
     filter(AggType == "hour") %>%
-    # Convert Start to Date format directly, avoiding temporary Date column
-    mutate(Date = as.Date(Start)) %>%
+    mutate(Date = as.Date(Start),
+           # Adjust Start for the beginning of the aggregation period
+           Start = make_datetime(year(Date), month(Date), day(Date), 1),
+           # Adjust End for the end of the aggregation period
+           End = make_datetime(year(Date), month(Date), day(Date), 1) + days(1)) %>%
     group_by(Date, Samplingpoint) %>%
-    summarize(DailyAvgValue = mean(Value, na.rm = TRUE), .groups = 'drop') %>%
-    # Directly use the new Date column for further processing
-    mutate(AggType = "day", Start = Date) %>%
-    # Now, we can safely remove the Date column as it's been merged into Start
-    select(-Date)
+    summarize(Start = first(Start),  # Keep Start as adjusted for daily aggregation
+              End = first(End),  # Keep End as adjusted for daily aggregation
+              Value = mean(Value, na.rm = TRUE),  # Calculate daily average
+              AggType = "day",  # Change AggType to 'day'
+              .groups = 'drop') %>%
+    select(-Date)  # Remove temporary Date column
   
-  if("hour" %in% unique(all_data$AggType)) {
-    # (existing aggregation code)
-    print("Hourly data aggregated to daily averages.")
-    print(head(hourly_data))
-  }
+  print("Hourly data aggregated to daily averages. (Not yet integrated in the dataset)")
+  print(summary(hourly_data))
   
-  # Filter out the hourly aggregated rows from the original dataset
-  daily_data <- all_data %>%
+  # Filter out the hourly data from the original dataset
+  daily_data <- valid_data %>%
     filter(AggType == "day")
   
   # Combine daily and converted hourly data
   combined_data <- bind_rows(daily_data, hourly_data)
-  
+  print("Combined data of daily averages and original daily data.")
   
 } else {
   # If no hourly data, proceed with original dataset
-  combined_data <- all_data
+  combined_data <- valid_data
+  print("No hourly data present. Proceeding with original dataset.")
 }
 
-print("Combined data:")
-print(head(combined_data))
-
-
-print(unique(combined_data$AggType))
-
+print(paste0("After procedure: Unique AggTypes in the combined data: ", unique(combined_data$AggType)))
 
 # Label the Samplingpoints ------------------------------------------------
 
@@ -116,14 +120,12 @@ apply_custom_labels <- function(sampling_point, mappings)
 vectorized_labeling <- Vectorize(apply_custom_labels, vectorize.args = "sampling_point")
 
 
-# Filter out invalid measurements -----------------------------------------
 
-valid_data <- filter_invalid_measurements(combined_data)
 
-# Analysing Data BUG: ONLY GRAVI!! ----------------------------------------------------------
+# Analysing Data by sampling point  ----------------------------------------------------------
 
 # Main analysis with custom labeling
-analysis_results <- valid_data %>%
+analysis_results <- combined_data %>%
   mutate(Month = floor_date(as.Date(Start), "month"),
          ValueExceeds = Value > threshold_value) %>%
   group_by(Month, Samplingpoint) %>%
@@ -197,17 +199,17 @@ ggsave(plot_save_path, plot = all_time_plot, width = 10, height = 6, dpi = 300)
 # Inform the user
 cat("Plot saved to:", plot_save_path, "\n")
 
-# Plotting Data for a Specific Year ----------------------------------------
+#Plotting Data for a Specific Year ----------------------------------------
 
 
-#GPT LAST YEAR
 
+# 
 # Define the plotting function
 plot_year_data <- function(data, target_year) {
   # Filter the dataset for the specified year
   filtered_data <- data %>%
     filter(year(Month) == target_year)
-  
+
   # Plotting for the specified year
   plot <- ggplot(filtered_data, aes(x = Month, y = ExceedCount, color = CustomLabel)) +
     geom_line() +
@@ -219,33 +221,22 @@ plot_year_data <- function(data, target_year) {
          color = "Sampling Point") +
     theme(legend.position = "bottom",
           legend.title.align = 0.5)
-  
+
   # Return the plot
   return(plot)
 }
 
 
-# Example usage
-last_year <- year(max(analysis_results$Month))
 
-# Plot for the last year in the dataset
-plot_year_data(analysis_results, last_year)
+# Call the function for the year 2013
+plot <- plot_year_data(analysis_results, 2013)
 
-#year before that
-plot_year_data(analysis_results, last_year - 1)
-#year before that
-plot_year_data(analysis_results, last_year - 2)
+# Print the plot
+print(ggplotly(plot))
 
 
 
-# Addon: Total Exceedances per Month NEED TO CHECK!! --------------------------------------
+# Exceedances Days Plots  --------------------------------------
 
-# Function to calculate and plot total and average exceedances
-
-#WAS PASSIERT MIT ABGESCHNITTENEN MONATEN???
-
-analyze_exceedances(valid_data, threshold_value, "daily")
-
-
-
+analyze_exceedance_days(combined_data, threshold_value,"PM2.5" ,"daily")
 
