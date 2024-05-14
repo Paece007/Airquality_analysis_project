@@ -6,6 +6,7 @@ library(purrr)
 library(zoo)
 library(readr)
 library(ggplot2)
+library(plotly)
 library(lubridate)
 
 
@@ -20,7 +21,7 @@ label_mappings <- read_csv("documents/labels_mapping.csv")
 # Set Variables -----------------------------------------------------------
 
 # Set threshold value
-threshold_value <- 120
+threshold_value <- 100
 
 # Path to your files
 dir_path <- "data/Vienna_O3/all_together"
@@ -35,6 +36,9 @@ if(length(path_parts) >= 2) {
 } else {
   dir_name <- path_parts[length(path_parts)]  # Fallback to the last part if less than 2 parts
 }
+
+# Prepend the threshold value to the directory name
+dir_name <- paste0("threshold", threshold_value, "_", dir_name)
 
 
 # Inserting Data ----------------------------------------------------------
@@ -117,5 +121,70 @@ print(paste("8-hour averages calculated. Number of unique sampling points:", len
 # Analysis ----------------------------------------------------------------
 
 # Function to analyze exceedance days of a given threshold of the 8-hour averages
-analyze_exceedance_days(averaged_data, threshold_value, "Ozone" , "8hourly")
+results_exceedance_days <- analyze_exceedance_days(averaged_data, threshold_value, "Ozone" , "8hourly")
 
+exceedance_plot <- results_exceedance_days$exceedance_plot
+pearson_result <- results_exceedance_days$pearson_result
+spearman_result <- results_exceedance_days$spearman_result
+
+# Saving ------------------------------------------------------------------
+
+# Save the plot as a PNG file
+plot_filename <- paste0("exceedance_plot_", dir_name, ".png")
+plot_save_path <- file.path("results", plot_filename)
+
+# Use ggsave() to save the plot
+ggsave(plot_save_path, plot = exceedance_plot, width = 10, height = 6, dpi = 300)
+
+# Inform the user
+cat("Plot saved to:", plot_save_path, "\n")
+
+
+
+
+# Assuming 'result' is your htest object from cor.test
+create_dataframe_from_htest <- function(result) {
+  data.frame(
+    statistic = ifelse(!is.null(result$statistic), result$statistic, NA),
+    p.value = ifelse(!is.null(result$p.value), result$p.value, NA),
+    parameter = ifelse(!is.null(result$parameter), result$parameter, NA),
+    estimate = ifelse(!is.null(result$estimate), result$estimate, NA),
+    null.value = ifelse(!is.null(result$null.value), result$null.value, NA),
+    alternative = ifelse(!is.null(result$alternative), result$alternative, NA),
+    method = ifelse(!is.null(result$method), result$method, NA),
+    data.name = ifelse(!is.null(result$data.name), result$data.name, NA),
+    conf.int.low = ifelse(!is.null(result$conf.int), result$conf.int[1], NA),
+    conf.int.high = ifelse(!is.null(result$conf.int), result$conf.int[2], NA),
+    conf.level = ifelse(!is.null(result$conf.level), result$conf.level, NA)
+  )
+}
+
+
+# Apply this function to your Pearson and Spearman results
+pearson_df <- create_dataframe_from_htest(pearson_result)
+spearman_df <- create_dataframe_from_htest(spearman_result)
+
+
+
+
+
+# Save the plot as a PNG file
+test_filename <- paste0("test_pearson_", dir_name, ".csv")
+test_save_path <- file.path("results", test_filename)
+
+# Assuming `test_results_exceedance_days` is a data frame of results
+write.table(pearson_df, file = test_save_path, row.names = FALSE)
+
+# Inform the user
+cat("Pearson result saved to:", test_save_path, "\n")
+
+
+# Save the plot as a PNG file
+test_filename <- paste0("test_spearman_", dir_name, ".csv")
+test_save_path <- file.path("results", test_filename)
+
+# Assuming `test_results_exceedance_days` is a data frame of results
+write.table(spearman_df, file = test_save_path, row.names = FALSE)
+
+# Inform the user
+cat("Spearman result saved to:", test_save_path, "\n")

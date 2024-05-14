@@ -1,0 +1,2 @@
+"statistic" "p.value" "parameter" "estimate" "null.value" "alternative" "method" "data.name" "conf.int.low" "conf.int.high" "conf.level"
+9091.85780088106 0.00195315051723655 NA -0.519361263516219 0 "two.sided" "Spearman's rank correlation rho" "total_exceedances_per_year$Year and total_exceedances_per_year$TotalExceedDays" NA NA NA

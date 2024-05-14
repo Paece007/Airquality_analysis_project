@@ -93,13 +93,14 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
   
   print("Starting analysis...")
   
-  
+
   # Adjust based on the type of aggregation: daily or 8-hourly
   if(aggregation == "8hourly") {
     # First, ensure 'End' is in Date format for daily grouping
     data <- data %>%
-      mutate(Date = as.Date(End))
-    
+      mutate(Date = as.Date(End)) %>%
+      filter(year(Date) <= 2023)  # Filter out dates from 2024 onward
+    print("Data filtered to exclude entries from 2024 onward.")
     # Group by 'Date' to process data day by day
     data <- data %>%
       group_by(Date) %>%
@@ -112,15 +113,19 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
     # First, ensure 'Start' is in Date format for daily grouping
     data <- data %>%
       mutate(Date = as.Date(Start)) %>%
+      filter(year(Date) <= 2023) %>% # Filter out dates from 2024 onward
       # Group by 'Date' to process data day by day
       group_by(Date) %>%
       # Determine if at least one value exceeds the threshold for each day
       summarize(ValueExceeds = any(Value > threshold, na.rm = TRUE), .groups = 'drop')
     
+    print("Data filtered to exclude entries from 2024 onward.")
+    
     print("Data filtered for daily exceedances. Checking if daily values exceed the threshold.")
   }
   
-
+  
+  
   # Create a summary to identify days with at least one exceedance
   daily_summary <- data %>%
     group_by(Date) %>%
@@ -213,7 +218,44 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
   
   print("Calculated total yearly exceedances.")
   
+  print("Calculating 2 models: ")
   
+  print("Calculating Pearson Test")
+  # Performing the correlation test (pearson)
+  cor_test_result_p <- cor.test(total_exceedances_per_year$Year, total_exceedances_per_year$TotalExceedDays, method = "pearson")
+  
+  # Print the result of the correlation test (pearson)
+  print(cor_test_result_p)
+  
+  # To display more user-friendly output, print specific components:
+  cat("Correlation Coefficient:", cor_test_result_p$estimate, "\n")
+  cat("P-value:", cor_test_result_p$p.value, "\n")
+  
+  print("Finished calculation Pearson test")
+  
+  
+  
+  print("Calculating Spearman Test")
+  # Performing the correlation test (Spearman)
+  cor_test_result_s <- cor.test(total_exceedances_per_year$Year, total_exceedances_per_year$TotalExceedDays, method = "spearman")
+  
+  # Print the result of the correlation test (Spearman)
+  print(cor_test_result_s)
+  
+  # To display more user-friendly output, print specific components:
+  cat("Correlation Coefficient:", cor_test_result_s$estimate, "\n")
+  cat("P-value:", cor_test_result_s$p.value, "\n")
+  
+  print("Finished calculation Spearman test")
+  
+  
+  
+  print("Calculating linear model...")
+  
+  # Fit a linear model
+  model <- lm(TotalExceedDays ~ Year, data = total_exceedances_per_year)
+
+  print("Preparing Total yearly exceedances plot")
   # Plot total yearly exceedances
   p3 <- ggplot(total_exceedances_per_year, aes(x = Year, y = TotalExceedDays)) +
     geom_rect(data = timeframes_colors, inherit.aes = FALSE,
@@ -221,6 +263,7 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
               alpha = 0.3) +
     geom_line(size = 1) + 
     geom_point(size = 3) +
+    geom_abline(intercept = coef(model)[1], slope = coef(model)[2], color = "red", size = 1) +
     labs(title = paste("Total Measured Yearly Exceedances of", pollutant_name, "with Threshold", threshold),
          x = "Year", 
          y = "Number of Exceedance Days") +
@@ -228,7 +271,8 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
     theme(text = element_text(family = "Helvetica"),
           plot.title = element_text(size = 20, face = "bold"),
           axis.title = element_text(size = 16, face = "bold"),
-          plot.margin = margin(10, 10, 10, 10))
+          plot.margin = margin(10, 10, 10, 10)) +
+    ylim(0, 300)
   
   print("Total yearly exceedances plot prepared.")
   
@@ -244,4 +288,11 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
   print(p2)
   print("Displaying the yearly exceedances plot...")
   print(p3)
+  
+  
+  return(list(exceedance_plot = p3,
+              pearson_result = cor_test_result_p,
+              spearman_result = cor_test_result_s,
+              model = model))
+  
 }
