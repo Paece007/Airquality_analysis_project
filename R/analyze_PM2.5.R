@@ -122,130 +122,156 @@ apply_custom_labels <- function(sampling_point, mappings)
 # Use vectorization for efficiency
 vectorized_labeling <- Vectorize(apply_custom_labels, vectorize.args = "sampling_point")
 
+print(vectorized_labeling(unique_sampling_points, label_mappings))
+print("Custom labels applied.")
 
+# Measuring Stations Plot -------------------------------------------------
 
+# Call the function for plotting measurement stations over time
+measurement_stations_plot <- plot_measurement_stations(valid_data, "PM2.5")
 
-# Analysing Data by sampling point  ----------------------------------------------------------
-
-# Main analysis with custom labeling
-analysis_results <- combined_data %>%
-  mutate(Month = floor_date(as.Date(Start), "month"),
-         ValueExceeds = Value > threshold_value) %>%
-  group_by(Month, Samplingpoint) %>%
-  summarize(ExceedCount = sum(ValueExceeds, na.rm = TRUE), .groups = 'drop') %>%
-  mutate(CustomLabel = vectorized_labeling(Samplingpoint, label_mappings))
-
-# Filter for "Other" labeled sampling points and print them
-sampling_points_labeled_other <- analysis_results %>%
-  filter(CustomLabel == "Other") %>%
-  select(Samplingpoint) %>%
-  distinct()
-
-if(nrow(sampling_points_labeled_other) > 0) {
-  print("Sampling Points Labeled as 'Other':")
-  print(sampling_points_labeled_other)
-}
-  
-# Print and Save the Analysis Results
-print("Analysis Results:")
-print(analysis_results)
-
-print(summary(analysis_results$ExceedCount))
-print(summary(analysis_results$Month))
-
-
-# Save results ---------------------------------------------------------------
-
-# Create a filename with the directory name included
-filename <- paste0("analysis_results_", dir_name, ".csv")
-
-# Full path where the file will be saved
-save_path <- file.path("results", filename)
-
-
-# Save the analysis results as a CSV file
-write_csv(analysis_results, save_path)
-
-# Inform the user
-cat("Analysis results saved to:", save_path, "\n")
-# Plotting Data -----------------------------------------------------------
-
-
-all_time_plot <- ggplot(analysis_results, aes(x = Month, y = ExceedCount, color = CustomLabel)) +
-  geom_line() +
-  geom_point() +
-  theme_minimal() +
-  labs(title = "Monthly Exceedance Counts by Sampling Point (PM2.5)",
-       x = "Month",
-       y = "Exceedance Count",
-       color = "Sampling Point") +
-  theme(legend.position = "bottom",
-        legend.title.align = 0.5)
-
-
-# Convert ggplot object to plotly object
-all_time_plotly <- ggplotly(all_time_plot)
-
-# Display the plot
-all_time_plotly
-
-
-# Save Plot ---------------------------------------------------------------
+# Print the plot
+print(ggplotly(measurement_stations_plot))
 
 # Save the plot as a PNG file
-plot_filename <- paste0("exceedance_counts_plot_", dir_name, ".png")
+plot_filename <- paste0("measuring_stations_", dir_name, ".png")
 plot_save_path <- file.path("results", plot_filename)
 
 # Use ggsave() to save the plot
-ggsave(plot_save_path, plot = all_time_plot, width = 10, height = 6, dpi = 300)
+ggsave(plot_save_path, plot = measurement_stations_plot, width = 10, height = 6, dpi = 300)
 
 # Inform the user
-cat("Plot saved to:", plot_save_path, "\n")
-
-#Plotting Data for a Specific Year ----------------------------------------
+cat("Measuring stations plot saved to:", plot_save_path, "\n")
 
 
+# Analysing Data by sampling point (NOT ACTIVATED)  ----------------------------------------------------------
 
+# # Main analysis with custom labeling
+# analysis_results <- combined_data %>%
+#   mutate(Month = floor_date(as.Date(Start), "month"),
+#          ValueExceeds = Value > threshold_value) %>%
+#   group_by(Month, Samplingpoint) %>%
+#   summarize(ExceedCount = sum(ValueExceeds, na.rm = TRUE), .groups = 'drop') %>%
+#   mutate(CustomLabel = vectorized_labeling(Samplingpoint, label_mappings))
 # 
-# Define the plotting function
-plot_year_data <- function(data, target_year) {
-  # Filter the dataset for the specified year
-  filtered_data <- data %>%
-    filter(year(Month) == target_year)
-
-  # Plotting for the specified year
-  plot <- ggplot(filtered_data, aes(x = Month, y = ExceedCount, color = CustomLabel)) +
-    geom_line() +
-    geom_point() +
-    theme_minimal() +
-    labs(title = paste("Monthly Exceedance Counts by Sampling Point in", target_year),
-         x = "Month",
-         y = "Exceedance Count",
-         color = "Sampling Point") +
-    theme(legend.position = "bottom",
-          legend.title.align = 0.5)
-
-  # Return the plot
-  return(plot)
-}
+# # Filter for "Other" labeled sampling points and print them
+# sampling_points_labeled_other <- analysis_results %>%
+#   filter(CustomLabel == "Other") %>%
+#   select(Samplingpoint) %>%
+#   distinct()
+# 
+# if(nrow(sampling_points_labeled_other) > 0) {
+#   print("Sampling Points Labeled as 'Other':")
+#   print(sampling_points_labeled_other)
+# }
+#   
+# # Print and Save the Analysis Results
+# print("Analysis Results:")
+# print(analysis_results)
+# 
+# print(summary(analysis_results$ExceedCount))
+# print(summary(analysis_results$Month))
 
 
+# Save results (NOT ACTIVATED) ---------------------------------------------------------------
 
-# Call the function for the year 2013
-plot <- plot_year_data(analysis_results, 2023)
+# # Create a filename with the directory name included
+# filename <- paste0("analysis_results_", dir_name, ".csv")
+# 
+# # Full path where the file will be saved
+# save_path <- file.path("results", filename)
+# 
+# 
+# # Save the analysis results as a CSV file
+# write_csv(analysis_results, save_path)
+# 
+# # Inform the user
+# cat("Analysis results saved to:", save_path, "\n")
 
-# Print the plot
-print(ggplotly(plot))
+# Plotting Data (NOT ACITVATED) -----------------------------------------------------------
 
+
+# all_time_plot <- ggplot(analysis_results, aes(x = Month, y = ExceedCount, color = CustomLabel)) +
+#   geom_line() +
+#   geom_point() +
+#   theme_minimal() +
+#   labs(title = "Monthly Exceedance Counts by Sampling Point (PM2.5)",
+#        x = "Month",
+#        y = "Exceedance Count",
+#        color = "Sampling Point") +
+#   theme(legend.position = "bottom",
+#         legend.title.align = 0.5)
+# 
+# 
+# # Convert ggplot object to plotly object
+# all_time_plotly <- ggplotly(all_time_plot)
+# 
+# # Display the plot
+# all_time_plotly
+
+
+# Save Plot (NOT ACTIVATED)---------------------------------------------------------------
+
+# # Save the plot as a PNG file
+# plot_filename <- paste0("exceedance_counts_plot_", dir_name, ".png")
+# plot_save_path <- file.path("results", plot_filename)
+# 
+# # Use ggsave() to save the plot
+# ggsave(plot_save_path, plot = all_time_plot, width = 10, height = 6, dpi = 300)
+# 
+# # Inform the user
+# cat("Plot saved to:", plot_save_path, "\n")
+
+# Plotting Data for a Specific Year (NOT ACTIVATED) ----------------------------------------
+
+# # Define the plotting function
+# plot_year_data <- function(data, target_year) {
+#   # Filter the dataset for the specified year
+#   filtered_data <- data %>%
+#     filter(year(Month) == target_year)
+# 
+#   # Plotting for the specified year
+#   plot <- ggplot(filtered_data, aes(x = Month, y = ExceedCount, color = CustomLabel)) +
+#     geom_line() +
+#     geom_point() +
+#     theme_minimal() +
+#     labs(title = paste("Monthly Exceedance Counts by Sampling Point in", target_year),
+#          x = "Month",
+#          y = "Exceedance Count",
+#          color = "Sampling Point") +
+#     theme(legend.position = "bottom",
+#           legend.title.align = 0.5)
+# 
+#   # Return the plot
+#   return(plot)
+# }
+# 
+# 
+# 
+# # Call the function for the year 2013
+# plot <- plot_year_data(analysis_results, 2023)
+# 
+# # Print the plot
+# print(ggplotly(plot))
+
+
+
+
+# Only Data from 2004 onwards ---------------------------------------------
+
+# Filter data to include only entries from 2004 onward
+combined_data <- combined_data %>%
+  filter(year(Start) >= 2004)
+
+print("From now on, only data from 2004 onward is used.")
 
 
 # Exceedances Days Plots  --------------------------------------
 
 results_exceedance_days <- analyze_exceedance_days(combined_data, threshold_value,"PM2.5" ,"daily")
 
-# exceedance_plot <- results_exceedance_days$exceedance_plot
-pearson_result <- results_exceedance_days$pearson_result
-spearman_result <- results_exceedance_days$spearman_result
+
+exceedance_plot <- results_exceedance_days$exceedance_plot
 linear_model <- results_exceedance_days$model
 
 
@@ -256,72 +282,19 @@ plot_filename <- paste0("exceedance_plot_", dir_name, ".png")
 plot_save_path <- file.path("results", plot_filename)
 
 # Use ggsave() to save the plot
-ggsave(plot_save_path, plot = exceedance_plot, width = 10, height = 6, dpi = 300)
+ggsave(plot_save_path, plot = exceedance_plot, width = 8, height = 6, dpi = 300)
 
 # Inform the user
 cat("Plot saved to:", plot_save_path, "\n")
 
-
-
-
-# Assuming 'result' is your htest object from cor.test
-create_dataframe_from_htest <- function(result) {
-  data.frame(
-    statistic = ifelse(!is.null(result$statistic), result$statistic, NA),
-    p.value = ifelse(!is.null(result$p.value), result$p.value, NA),
-    parameter = ifelse(!is.null(result$parameter), result$parameter, NA),
-    estimate = ifelse(!is.null(result$estimate), result$estimate, NA),
-    null.value = ifelse(!is.null(result$null.value), result$null.value, NA),
-    alternative = ifelse(!is.null(result$alternative), result$alternative, NA),
-    method = ifelse(!is.null(result$method), result$method, NA),
-    data.name = ifelse(!is.null(result$data.name), result$data.name, NA),
-    conf.int.low = ifelse(!is.null(result$conf.int), result$conf.int[1], NA),
-    conf.int.high = ifelse(!is.null(result$conf.int), result$conf.int[2], NA),
-    conf.level = ifelse(!is.null(result$conf.level), result$conf.level, NA)
-  )
-}
-
-
-# Apply this function to your Pearson and Spearman results
-pearson_df <- create_dataframe_from_htest(pearson_result)
-spearman_df <- create_dataframe_from_htest(spearman_result)
-model_df <- create_dataframe_from_htest(linear_model)
-
-
-
-
-
-# Save the plot as a PNG file
-test_filename <- paste0("test_pearson_", dir_name, ".csv")
-test_save_path <- file.path("results", test_filename)
-
-# Assuming `test_results_exceedance_days` is a data frame of results
-write.table(pearson_df, file = test_save_path, row.names = FALSE)
-
-# Inform the user
-cat("Pearson result saved to:", test_save_path, "\n")
-
-
-# Save the plot as a PNG file
-test_filename <- paste0("test_spearman_", dir_name, ".csv")
-test_save_path <- file.path("results", test_filename)
-
-# Assuming `test_results_exceedance_days` is a data frame of results
-write.table(spearman_df, file = test_save_path, row.names = FALSE)
-
-# Inform the user
-cat("Spearman result saved to:", test_save_path, "\n")
-
-
-
 #Linear model
 
 # Save the plot as a PNG file
-test_filename <- paste0("lm_", dir_name, ".csv")
+test_filename <- paste0("lm_", dir_name, ".txt")
 test_save_path <- file.path("results", test_filename)
 
-# Assuming `test_results_exceedance_days` is a data frame of results
-write.table(model_df, file = test_save_path, row.names = FALSE)
+# Assuming `model` is your fitted linear model
+capture.output(summary(linear_model), file = test_save_path)
 
 # Inform the user
 cat("LM result saved to:", test_save_path, "\n")

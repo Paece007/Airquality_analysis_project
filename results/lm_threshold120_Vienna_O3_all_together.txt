@@ -1,0 +1,19 @@
+
+Call:
+lm(formula = TotalExceedDays ~ Year, data = total_exceedances_per_year)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-24.362  -9.200  -0.399   5.697  45.668 
+
+Coefficients:
+             Estimate Std. Error t value Pr(>|t|)    
+(Intercept) 2077.0604   518.7697   4.004 0.000361 ***
+Year          -1.0074     0.2585  -3.897 0.000486 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 14.14 on 31 degrees of freedom
+Multiple R-squared:  0.3288,	Adjusted R-squared:  0.3072 
+F-statistic: 15.19 on 1 and 31 DF,  p-value: 0.0004856
+

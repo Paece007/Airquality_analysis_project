@@ -21,7 +21,7 @@ label_mappings <- read_csv("documents/labels_mapping.csv")
 # Set Variables -----------------------------------------------------------
 
 # Set threshold value
-threshold_value <- 100
+threshold_value <- 120
 
 # Path to your files
 dir_path <- "data/Vienna_O3/all_together"
@@ -77,12 +77,29 @@ vectorized_labeling <- Vectorize(apply_custom_labels, vectorize.args = "sampling
 print(vectorized_labeling(unique_sampling_points, label_mappings))
 print("Custom labels applied.")
 
-
 # Filter out invalid data entries ------------------------------------------
 
 # Filter out invalid measurements and store them in a separate data frame
 valid_data <- filter_invalid_measurements(all_data)
 
+
+# Measuring Stations Plot -------------------------------------------------
+
+# Call the function for plotting measurement stations over time
+measurement_stations_plot <- plot_measurement_stations(valid_data, "Ozon")
+
+# Print the plot
+print(ggplotly(measurement_stations_plot))
+
+# Save the plot as a PNG file
+plot_filename <- paste0("measuring_stations_", dir_name, ".png")
+plot_save_path <- file.path("results", plot_filename)
+
+# Use ggsave() to save the plot
+ggsave(plot_save_path, plot = measurement_stations_plot, width = 10, height = 6, dpi = 300)
+
+# Inform the user
+cat("Measuring stations plot saved to:", plot_save_path, "\n")
 
 # Calculate 8hr average ---------------------------------------------------
 
@@ -121,11 +138,12 @@ print(paste("8-hour averages calculated. Number of unique sampling points:", len
 # Analysis ----------------------------------------------------------------
 
 # Function to analyze exceedance days of a given threshold of the 8-hour averages
-results_exceedance_days <- analyze_exceedance_days(averaged_data, threshold_value, "Ozone" , "8hourly")
+results_exceedance_days <- analyze_exceedance_days(averaged_data, threshold_value, "Ozon" , "8hourly")
+
 
 exceedance_plot <- results_exceedance_days$exceedance_plot
-pearson_result <- results_exceedance_days$pearson_result
-spearman_result <- results_exceedance_days$spearman_result
+linear_model <- results_exceedance_days$model
+
 
 # Saving ------------------------------------------------------------------
 
@@ -140,51 +158,14 @@ ggsave(plot_save_path, plot = exceedance_plot, width = 10, height = 6, dpi = 300
 cat("Plot saved to:", plot_save_path, "\n")
 
 
-
-
-# Assuming 'result' is your htest object from cor.test
-create_dataframe_from_htest <- function(result) {
-  data.frame(
-    statistic = ifelse(!is.null(result$statistic), result$statistic, NA),
-    p.value = ifelse(!is.null(result$p.value), result$p.value, NA),
-    parameter = ifelse(!is.null(result$parameter), result$parameter, NA),
-    estimate = ifelse(!is.null(result$estimate), result$estimate, NA),
-    null.value = ifelse(!is.null(result$null.value), result$null.value, NA),
-    alternative = ifelse(!is.null(result$alternative), result$alternative, NA),
-    method = ifelse(!is.null(result$method), result$method, NA),
-    data.name = ifelse(!is.null(result$data.name), result$data.name, NA),
-    conf.int.low = ifelse(!is.null(result$conf.int), result$conf.int[1], NA),
-    conf.int.high = ifelse(!is.null(result$conf.int), result$conf.int[2], NA),
-    conf.level = ifelse(!is.null(result$conf.level), result$conf.level, NA)
-  )
-}
-
-
-# Apply this function to your Pearson and Spearman results
-pearson_df <- create_dataframe_from_htest(pearson_result)
-spearman_df <- create_dataframe_from_htest(spearman_result)
-
-
-
-
+#Linear model
 
 # Save the plot as a PNG file
-test_filename <- paste0("test_pearson_", dir_name, ".csv")
+test_filename <- paste0("lm_", dir_name, ".txt")
 test_save_path <- file.path("results", test_filename)
 
-# Assuming `test_results_exceedance_days` is a data frame of results
-write.table(pearson_df, file = test_save_path, row.names = FALSE)
+# Assuming `model` is your fitted linear model
+capture.output(summary(linear_model), file = test_save_path)
 
 # Inform the user
-cat("Pearson result saved to:", test_save_path, "\n")
-
-
-# Save the plot as a PNG file
-test_filename <- paste0("test_spearman_", dir_name, ".csv")
-test_save_path <- file.path("results", test_filename)
-
-# Assuming `test_results_exceedance_days` is a data frame of results
-write.table(spearman_df, file = test_save_path, row.names = FALSE)
-
-# Inform the user
-cat("Spearman result saved to:", test_save_path, "\n")
+cat("LM result saved to:", test_save_path, "\n")

@@ -1,4 +1,4 @@
-start,end,color
-2002-01-01,2013-01-01,#FAD9A1
-2013-01-01,2023-01-01,#B5EAD7
-2023-01-01,2024-01-01,#FFC8DD
+start,end,color,label
+2002-01-01,2013-01-01,#FAD9A1,"historische Airbase-Daten"
+2013-01-01,2023-01-01,#B5EAD7,"geprüfte Daten (E1a)"
+2023-01-01,2024-01-01,#FFC8DD,"ungeprüfte, kontinuierlich übermittelte Daten (E2a)"

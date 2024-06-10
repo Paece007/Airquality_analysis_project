@@ -1,2 +1,0 @@
-"statistic" "p.value" "parameter" "estimate" "null.value" "alternative" "method" "data.name" "conf.int.low" "conf.int.high" "conf.level"
--2.37661322139668 0.0238304691563108 31 -0.392583144004075 0 "two.sided" "Pearson's product-moment correlation" "total_exceedances_per_year$Year and total_exceedances_per_year$TotalExceedDays" -0.648490346700571 -0.0569496711293665 NA

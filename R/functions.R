@@ -11,6 +11,13 @@ timeframes_colors$end <- as.Date(timeframes_colors$end)
 timeframes_colors <- timeframes_colors %>%
   mutate(start_year = year(start),
          end_year = year(end))
+# Order by the start column
+timeframes_colors <- timeframes_colors %>%
+  arrange(start)
+
+# Ensure the 'label' column is a factor with levels in the desired order
+timeframes_colors <- timeframes_colors %>%
+  mutate(label = factor(label, levels = label))
 
 
 #function: load and combine parquet files
@@ -87,6 +94,41 @@ filter_invalid_measurements <- function(data) {
 }
 
 
+# Function to plot the number of measuring stations with at least one valid measurement over the years
+plot_measurement_stations <- function(data, pollutant_name) {
+  # Count the number of unique sampling points with at least one valid measurement per year
+  yearly_station_counts <- data %>%
+    mutate(Year = year(Start)) %>%
+    group_by(Year) %>%
+    summarize(StationCount = n_distinct(Samplingpoint), .groups = 'drop')
+  
+  # Ensure all years are represented, even those with 0 stations
+  all_years <- data.frame(Year = seq(min(yearly_station_counts$Year), max(yearly_station_counts$Year)))
+  yearly_station_counts <- full_join(all_years, yearly_station_counts, by = "Year")
+  yearly_station_counts$StationCount[is.na(yearly_station_counts$StationCount)] <- 0
+  
+  # Plot the yearly station counts
+  plot <- ggplot(yearly_station_counts, aes(x = Year, y = StationCount)) +
+    geom_line() +
+    geom_point() +
+    theme_minimal() +
+    labs(title = paste("Anzahl der Messtationen für", pollutant_name, "mit mindestens einem validen Messwert pro Jahr in Wien"),
+         x = "Jahr",
+         y = "Anzahl Stationen") +
+    theme(legend.position = "none") +
+    ylim(0, 20)
+  
+  # Return the plot
+  return(plot)
+}
+
+
+
+
+
+
+
+
 
 #function: analyze exceedance days
 analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation = "daily", specific_month = 7) {
@@ -158,9 +200,6 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
     geom_line() + geom_point() +
     labs(title = paste("Total Monthly Exceedances of", pollutant_name, "with threshold", threshold), x = "Date", y = "Number of Exceedance Days") +
     theme_minimal()
-    
-  
-  print(ggplotly(p1))
   
   print("Total monthly exceedances plot prepared.")
   
@@ -218,61 +257,34 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
   
   print("Calculated total yearly exceedances.")
   
-  print("Calculating 2 models: ")
-  
-  print("Calculating Pearson Test")
-  # Performing the correlation test (pearson)
-  cor_test_result_p <- cor.test(total_exceedances_per_year$Year, total_exceedances_per_year$TotalExceedDays, method = "pearson")
-  
-  # Print the result of the correlation test (pearson)
-  print(cor_test_result_p)
-  
-  # To display more user-friendly output, print specific components:
-  cat("Correlation Coefficient:", cor_test_result_p$estimate, "\n")
-  cat("P-value:", cor_test_result_p$p.value, "\n")
-  
-  print("Finished calculation Pearson test")
-  
-  
-  
-  print("Calculating Spearman Test")
-  # Performing the correlation test (Spearman)
-  cor_test_result_s <- cor.test(total_exceedances_per_year$Year, total_exceedances_per_year$TotalExceedDays, method = "spearman")
-  
-  # Print the result of the correlation test (Spearman)
-  print(cor_test_result_s)
-  
-  # To display more user-friendly output, print specific components:
-  cat("Correlation Coefficient:", cor_test_result_s$estimate, "\n")
-  cat("P-value:", cor_test_result_s$p.value, "\n")
-  
-  print("Finished calculation Spearman test")
-  
-  
-  
   print("Calculating linear model...")
   
   # Fit a linear model
   model <- lm(TotalExceedDays ~ Year, data = total_exceedances_per_year)
 
   print("Preparing Total yearly exceedances plot")
+  
   # Plot total yearly exceedances
   p3 <- ggplot(total_exceedances_per_year, aes(x = Year, y = TotalExceedDays)) +
     geom_rect(data = timeframes_colors, inherit.aes = FALSE,
-              aes(xmin = start_year, xmax = end_year, ymin = -Inf, ymax = Inf, fill = I(color)),
+              aes(xmin = start_year, xmax = end_year, ymin = -Inf, ymax = Inf, fill = label),
               alpha = 0.3) +
     geom_line(size = 1) + 
     geom_point(size = 3) +
     geom_abline(intercept = coef(model)[1], slope = coef(model)[2], color = "red", size = 1) +
-    labs(title = paste("Total Measured Yearly Exceedances of", pollutant_name, "with Threshold", threshold),
-         x = "Year", 
-         y = "Number of Exceedance Days") +
-    theme_minimal(base_size = 14) +
-    theme(text = element_text(family = "Helvetica"),
-          plot.title = element_text(size = 20, face = "bold"),
-          axis.title = element_text(size = 16, face = "bold"),
-          plot.margin = margin(10, 10, 10, 10)) +
+    labs(title = paste("Anzahl der Tage mit mindestens einer gemessenen\nÜberschreitungen des Schwellenwerts", threshold,"von", pollutant_name, "in Wien pro Jahr"),
+         x = "Jahr", 
+         y = "Tage",
+         fill = "Zeitreihen") +
+    scale_fill_manual(values = setNames(timeframes_colors$color, timeframes_colors$label)) +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+          legend.position = "bottom", # Position legend below the plot
+          legend.direction = "horizontal", # Arrange legend items horizontally
+          legend.box = "horizontal",
+          plot.margin = margin(t = 30, r = 30, b = 30, l = 30)) +
     ylim(0, 300)
+  
   
   print("Total yearly exceedances plot prepared.")
   
@@ -283,16 +295,14 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
   # Display plots
   print("Displaying plots...")
   print("Displaying the total monthly exceedances plot...")
-  print(p1)
+  #print(p1)
   print("Displaying the average monthly exceedances plot...")
-  print(p2)
+  #print(p2)
   print("Displaying the yearly exceedances plot...")
   print(p3)
   
   
   return(list(exceedance_plot = p3,
-              pearson_result = cor_test_result_p,
-              spearman_result = cor_test_result_s,
               model = model))
   
 }
