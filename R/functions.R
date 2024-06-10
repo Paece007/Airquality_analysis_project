@@ -303,6 +303,49 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
   
   
   return(list(exceedance_plot = p3,
-              model = model))
+              model = model,
+              exceedance_data = total_exceedances_per_year))
   
 }
+
+
+
+#NEW FOR POSTER
+combine_exceedance_plots <- function(exceedance_results, pollutant_name, thresholds) {
+  combined_data <- bind_rows(lapply(seq_along(exceedance_results), function(i) {
+    result <- exceedance_results[[i]]$exceedance_data
+    result$Threshold <- thresholds[i]
+    return(result)
+  }))
+  
+  models <- lapply(seq_along(thresholds), function(i) {
+    lm(TotalExceedDays ~ Year, data = combined_data[combined_data$Threshold == thresholds[i], ])
+  })
+  
+  plot <- ggplot(combined_data, aes(x = Year, y = TotalExceedDays, color = as.factor(Threshold))) +
+    geom_line() +
+    geom_point() +
+    labs(title = paste("Total Yearly Exceedances of", pollutant_name, "with Multiple Thresholds"),
+         x = "Year", y = "Number of Exceedance Days", color = "Threshold") +
+    theme_minimal()
+  
+  for (i in seq_along(models)) {
+    model <- models[[i]]
+    intercept <- coef(model)[1]
+    slope <- coef(model)[2]
+    threshold <- thresholds[i]
+    plot <- plot + 
+      geom_abline(intercept = intercept, slope = slope, color = scales::hue_pal()(length(thresholds))[i], linetype = "dashed")
+  }
+  
+  print(ggplotly(plot))
+  
+  # Save the plot
+  plot_filename <- paste0("combined_exceedance_plot_", pollutant_name, ".png")
+  plot_save_path <- file.path("results", plot_filename)
+  ggsave(plot_save_path, plot = plot, width = 10, height = 6, dpi = 300)
+  
+  cat("Combined exceedance plot saved to:", plot_save_path, "\n")
+}
+
+

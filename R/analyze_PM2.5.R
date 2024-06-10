@@ -298,3 +298,16 @@ capture.output(summary(linear_model), file = test_save_path)
 
 # Inform the user
 cat("LM result saved to:", test_save_path, "\n")
+
+
+# New for Poster ----------------------------------------------------------
+
+threshold_values <- c(15, 25)
+
+exceedance_results <- lapply(threshold_values, function(threshold) {
+  analyze_exceedance_days(combined_data, threshold, "PM2.5", "daily")
+})
+
+# Combine and plot results
+combine_exceedance_plots(exceedance_results, "PM2.5", threshold_values)
+
