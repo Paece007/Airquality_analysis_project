@@ -236,10 +236,14 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
   print("Creating plot to visualize the average exceedance days per month across all years...")
   
   p2 <- ggplot(avg_monthly_exceedances, aes(x = MonthName, y = AvgExceedanceDays)) +
-    geom_bar(stat = "identity", fill = "coral") +
-    labs(title = paste("Average Exceedance Days per Month Across All Years of", pollutant_name, "with threshold", threshold),
-         x = "Month", y = "Average Exceedance Days") +
-    theme_minimal()
+    geom_bar(stat = "identity", fill = "darkgreen", width = 0.7, alpha = 0.8) +
+    labs(title = paste("Durchschnittliche Anzahl der Tage mit mindestens\neiner gemessenen Überschreitung des Schwellenwerts", threshold, "von", pollutant_name, "\npro Monat im betrachteten Zeitraum in Wien"),
+         x = "Monat", y = "Durchschnittliche Anzahl der Tage") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.margin = margin(t = 30, r = 30, b = 30, l = 30),
+          axis.text.x = element_text(angle = 45, hjust = 1)) + # Added angle to x-axis text for better readability
+    ylim(0, 25)
   
   print("Total exceedance days per month plot prepared.")
   
@@ -293,18 +297,19 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
   
   
   # Display plots
-  print("Displaying plots...")
-  print("Displaying the total monthly exceedances plot...")
+  #print("Displaying plots...")
+  #print("Displaying the total monthly exceedances plot...")
   #print(p1)
   print("Displaying the average monthly exceedances plot...")
-  #print(p2)
+  print(p2)
   print("Displaying the yearly exceedances plot...")
   print(p3)
   
   
   return(list(exceedance_plot = p3,
               model = model,
-              exceedance_data = total_exceedances_per_year))
+              exceedance_data = total_exceedances_per_year,
+              monthly_exceedance_plot = p2))
   
 }
 
@@ -312,38 +317,73 @@ analyze_exceedance_days <- function(data, threshold, pollutant_name, aggregation
 
 #NEW FOR POSTER
 combine_exceedance_plots <- function(exceedance_results, pollutant_name, thresholds) {
+  if (is.null(exceedance_results) || length(exceedance_results) == 0) {
+    stop("Exceedance results cannot be NULL or empty.")
+  }
+  
   combined_data <- bind_rows(lapply(seq_along(exceedance_results), function(i) {
     result <- exceedance_results[[i]]$exceedance_data
+    if (is.null(result)) {
+      stop(paste("Exceedance data at index", i, "is NULL."))
+    }
     result$Threshold <- thresholds[i]
     return(result)
   }))
   
+  print("Combined data created:")
+  print(head(combined_data))
+  
+  # Fit linear models for each threshold
   models <- lapply(seq_along(thresholds), function(i) {
-    lm(TotalExceedDays ~ Year, data = combined_data[combined_data$Threshold == thresholds[i], ])
+    model_data <- combined_data[combined_data$Threshold == thresholds[i], ]
+    if (nrow(model_data) == 0) {
+      stop(paste("No data available for threshold", thresholds[i]))
+    }
+    lm(TotalExceedDays ~ Year, data = model_data)
   })
   
-  plot <- ggplot(combined_data, aes(x = Year, y = TotalExceedDays, color = as.factor(Threshold))) +
-    geom_line() +
-    geom_point() +
-    labs(title = paste("Total Yearly Exceedances of", pollutant_name, "with Multiple Thresholds"),
-         x = "Year", y = "Number of Exceedance Days", color = "Threshold") +
-    theme_minimal()
+  # Define the colors for the thresholds
+  threshold_colors <- setNames(c("#038ac2", "#00008B"), thresholds) # Light blue for WHO, Dark blue for EU
   
+  # Plotting
+  plot <- ggplot(combined_data, aes(x = Year, y = TotalExceedDays, color = as.factor(Threshold))) +
+    geom_line(size = 1.5) +
+    geom_point(size = 3) +
+    labs(title = paste("Überschreitungstage von", pollutant_name, "in Wien"),
+         x = "Jahr", y = "Jährliche Anzahl der Überschreitungen", color = "Schwellenwert") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 24, face = "bold", family = "Arial",, hjust = 0.5),
+      axis.title.x = element_text(size = 20, face = "bold", family = "Arial"),
+      axis.title.y = element_text(size = 18, face = "bold", family = "Arial"),
+      axis.text = element_text(size = 16, family = "Arial"),
+      legend.title = element_text(size = 18, family = "Arial"),
+      legend.text = element_text(size = 20, family = "Arial"),
+      legend.position = "bottom", 
+      legend.box = "horizontal",
+      panel.grid.major = element_line(size = 0.5, linetype = 'dashed', color = 'gray'),
+      panel.grid.minor = element_blank()
+    ) +
+    scale_color_manual(values = threshold_colors)
+  
+  # Adding trend lines
   for (i in seq_along(models)) {
     model <- models[[i]]
     intercept <- coef(model)[1]
     slope <- coef(model)[2]
-    threshold <- thresholds[i]
+    threshold <- as.character(thresholds[i])
     plot <- plot + 
-      geom_abline(intercept = intercept, slope = slope, color = scales::hue_pal()(length(thresholds))[i], linetype = "dashed")
+      geom_abline(intercept = intercept, slope = slope, color = threshold_colors[threshold], linetype = "dashed", size = 1)
   }
   
+  # Print the plot
+  print("Displaying the yearly exceedances plot...")
   print(ggplotly(plot))
   
   # Save the plot
   plot_filename <- paste0("combined_exceedance_plot_", pollutant_name, ".png")
   plot_save_path <- file.path("results", plot_filename)
-  ggsave(plot_save_path, plot = plot, width = 10, height = 6, dpi = 300)
+  ggsave(plot_save_path, plot = plot, width = 10, height = 10, dpi = 300)
   
   cat("Combined exceedance plot saved to:", plot_save_path, "\n")
 }

@@ -143,6 +143,7 @@ results_exceedance_days <- analyze_exceedance_days(averaged_data, threshold_valu
 
 exceedance_plot <- results_exceedance_days$exceedance_plot
 linear_model <- results_exceedance_days$model
+monthly_exceedance_plot <- results_exceedance_days$monthly_exceedance_plot
 
 
 # Saving ------------------------------------------------------------------
@@ -160,7 +161,7 @@ cat("Plot saved to:", plot_save_path, "\n")
 
 #Linear model
 
-# Save the plot as a PNG file
+# Save the model as a text file
 test_filename <- paste0("lm_", dir_name, ".txt")
 test_save_path <- file.path("results", test_filename)
 
@@ -171,8 +172,20 @@ capture.output(summary(linear_model), file = test_save_path)
 cat("LM result saved to:", test_save_path, "\n")
 
 
+# Save the monthly plot as png
+plot_filename <- paste0("monthly_exceedance_plot_", dir_name, ".png")
+plot_save_path <- file.path("results", plot_filename)
+
+# Use ggsave() to save the plot
+ggsave(plot_save_path, plot = monthly_exceedance_plot, width = 10, height = 6, dpi = 300)
+
+# Inform the user
+cat("Plot saved to:", plot_save_path, "\n")
+
+
+
 # New for Poster ----------------------------------------------------------
-threshold_values <- c(120, 100)
+threshold_values <- c(100, 120)
 
 exceedance_results <- lapply(threshold_values, function(threshold) {
   analyze_exceedance_days(averaged_data, threshold, "Ozone", "8hourly")
