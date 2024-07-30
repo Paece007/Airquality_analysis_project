@@ -51,7 +51,7 @@ This study underscores the importance of stringent air quality standards and con
 
 ## Acknowledgments
 
-We would like to thank our professor, Ao.Univ.Prof. Mag.rer.nat. Dr.rer.nat. Philipp Weihs, and our university for supporting this research. Special thanks to my team members Jonathan Wiesbauer, Philipp Gheorghe Wiederkehr, Johannes Premauer, and Johannes Hartmann for their collaboration.
+We would like to thank our professor, Ao.Univ.Prof. Mag.rer.nat. Dr.rer.nat. Philipp Weihs, and our university for supporting this research. Special thanks to my team members Jonathan Wiesbauer, Johannes Premauer, and Johannes Hartmann for their collaboration.
 
 ## How to Use This Repository
 
