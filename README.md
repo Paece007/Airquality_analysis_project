@@ -10,8 +10,6 @@ This repository contains the data analysis and findings of our university projec
 5. [Discussion](#discussion)
 6. [Conclusion](#conclusion)
 7. [Acknowledgments](#acknowledgments)
-8. [How to Use This Repository](#how-to-use-this-repository)
-9. [License](#license)
 
 ## Introduction
 
@@ -52,27 +50,3 @@ This study underscores the importance of stringent air quality standards and con
 ## Acknowledgments
 
 We would like to thank our professor, Ao.Univ.Prof. Mag.rer.nat. Dr.rer.nat. Philipp Weihs, and our university for supporting this research. Special thanks to my team members Jonathan Wiesbauer, Johannes Premauer, and Johannes Hartmann for their collaboration.
-
-## How to Use This Repository
-
-1. **Clone the repository**:
-    ```bash
-    git clone https://github.com/yourusername/air-quality-analysis.git
-    ```
-
-2. **Navigate to the project directory**:
-    ```bash
-    cd air-quality-analysis
-    ```
-
-3. **Install dependencies** (if any):
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4. **Run the analysis**:
-    - Detailed instructions for running scripts and notebooks will be provided in the respective folders.
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
